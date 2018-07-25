@@ -12,12 +12,21 @@ from CaffeLoader import loadCaffemodel
 
 import argparse
 parser = argparse.ArgumentParser()
+# Basic options
 parser.add_argument("-input_image", help="Input target image", default='examples/inputs/tubingen.jpg')
 parser.add_argument("-image_size", help="Maximum height / width of generated image", type=int, default=512)
-parser.add_argument("-model_file", type=str, default='models/vgg19-d01eb7cb.pth')
-parser.add_argument("-layer", help="layers for examination", default='relu2_2')
-parser.add_argument("-pooling", help="max or avg pooling", type=str, default='max')
+parser.add_argument("-gpu", help="Zero-indexed ID of the GPU to use; for CPU mode set -gpu = -1", type=int, default=0)
+
+# Output options  
 parser.add_argument("-output_image", default='out.png')
+
+# Other options
+parser.add_argument("-pooling", help="max or avg pooling", type=str, default='max')
+parser.add_argument("-model_file", type=str, default='models/vgg19-d01eb7cb.pth')
+parser.add_argument("-backend", choices=['nn', 'cudnn', 'mkl'], default='nn')
+parser.add_argument("-cudnn_autotune", action='store_true')
+
+parser.add_argument("-layer", help="layers for examination", default='relu2_2')
 params = parser.parse_args()
 
 
@@ -25,9 +34,9 @@ Image.MAX_IMAGE_PIXELS = 1000000000 # Support gigapixel images
 
 def main(): 
     # Build the model definition and setup pooling layers:   
-    cnn, layerList = loadCaffemodel(params.model_file, params.pooling, -1) 
+    cnn, layerList = loadCaffemodel(params.model_file, params.pooling, params.gpu) 
 
-    img = preprocess(params.input_image, params.image_size).float()
+    img = preprocess(params.input_image, params.image_size).type(dtype)
 
     cnn = copy.deepcopy(cnn)
     net = nn.Sequential()  
@@ -70,6 +79,22 @@ def main():
     print("Saving image")
     deprocess(y3, params.output_image)
 
+    
+def setup_gpu():
+    if params.gpu > -1:
+        if params.backend == 'cudnn': 
+            torch.backends.cudnn.enabled = True
+            if params.cudnn_autotune:
+                torch.backends.cudnn.benchmark = True  
+        else:
+            torch.backends.cudnn.enabled = False
+        torch.cuda.set_device(params.gpu)
+        dtype = torch.cuda.FloatTensor
+    elif params.gpu == -1: 
+       if params.backend =='mkl': 
+           torch.backends.mkl.enabled = True 
+       dtype = torch.FloatTensor
+    return dtype 
 
 # Preprocess an image before passing it to a model.
 # We need to rescale from [0, 1] to [0, 255], convert from RGB to BGR,
