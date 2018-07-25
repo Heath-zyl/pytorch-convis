@@ -27,39 +27,39 @@ class NIN(nn.Module):
 
         self.features = nn.Sequential(
             nn.Conv2d(3,96,(11, 11),(4, 4)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(96,96,(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(96,96,(1, 1)),
-	    nn.ReLU(inplace=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(96,96,(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(96,96,(1, 1)),
+            nn.ReLU(inplace=True),
             pool2d,
-	    nn.Conv2d(96,256,(5, 5),(1, 1),(2, 2)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(256,256,(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(256,256,(1, 1)),
-	    nn.ReLU(inplace=True),
+            nn.Conv2d(96,256,(5, 5),(1, 1),(2, 2)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256,256,(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256,256,(1, 1)),
+            nn.ReLU(inplace=True),
             pool2d,
-	    nn.Conv2d(256,384,(3, 3),(1, 1),(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(384,384,(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(384,384,(1, 1)),
-	    nn.ReLU(inplace=True),
+            nn.Conv2d(256,384,(3, 3),(1, 1),(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384,384,(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(384,384,(1, 1)),
+            nn.ReLU(inplace=True),
             pool2d,
-	    nn.Dropout(0.5),
-	    nn.Conv2d(384,1024,(3, 3),(1, 1),(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(1024,1024,(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.Conv2d(1024,1000,(1, 1)),
-	    nn.ReLU(inplace=True),
-	    nn.AvgPool2d((6, 6),(1, 1),(0, 0),ceil_mode=True),
-	    nn.Softmax(),
+            nn.Dropout(0.5),
+            nn.Conv2d(384,1024,(3, 3),(1, 1),(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(1024,1024,(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(1024,1000,(1, 1)),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d((6, 6),(1, 1),(0, 0),ceil_mode=True),
+            nn.Softmax(),
         )
- 
 
-		
+
+
 def buildSequential(channel_list, pooling):
     layers = []
     in_channels = 3
@@ -68,8 +68,7 @@ def buildSequential(channel_list, pooling):
     elif pooling == 'avg':
         pool2d = nn.AvgPool2d(kernel_size=2, stride=2)
     else: 
-        print("Unrecognized pooling parameter")
-        quit()
+        raise ValueError("Unrecognized pooling parameter")
     for c in channel_list:
         if c == 'P':
             layers += [pool2d]
@@ -104,22 +103,23 @@ vgg19_dict = {
 
 
 def modelSelector(model_file, pooling):
-    if "vgg19" in str(model_file):
-        print("VGG-19 Architecture Detected")
-        cnn, layerList = VGG(buildSequential(channel_list['VGG-19'], pooling)), vgg19_dict
-    elif "vgg16" in str(model_file):
-        print("VGG-16 Architecture Detected")
-        cnn, layerList = VGG(buildSequential(channel_list['VGG-16'], pooling)), vgg16_dict
-    elif "nin" in str(model_file):
+    if "vgg" in model_file:
+        if "19" in model_file:
+            print("VGG-19 Architecture Detected")
+            cnn, layerList = VGG(buildSequential(channel_list['VGG-19'], pooling)), vgg19_dict
+        elif "16" in model_file:
+            print("VGG-16 Architecture Detected")
+            cnn, layerList = VGG(buildSequential(channel_list['VGG-16'], pooling)), vgg16_dict
+        else:
+            raise ValueError("VGG architecture not recognized.")    
+    elif "nin" in model_file:
         print("NIN Architecture Detected")
         cnn, layerList = NIN(pooling), nin_dict
     else:
-        print("Model Architecture Not Recognized")
-        raise ValueError("""Model Architecture Not Recognized. Please ensure that the model
-        name contains either "vgg16", "vgg19", or "nin", in the file name.""")       
+        raise ValueError("Model architecture not recognized.")
     return cnn, layerList
 
-# Print like Lua/loadcaffe
+# Print like Torch7/loadcaffe
 def print_loadcaffe(cnn, layerList): 
     c = 0
     for l in list(cnn):
@@ -130,14 +130,14 @@ def print_loadcaffe(cnn, layerList):
          if c == len(layerList['C']):
              break
 
-# Get the model class, and configure pooling layer type
+# Load the model, and configure pooling layer type
 def loadCaffemodel(model_file, pooling, use_gpu):
-    cnn, layerList = modelSelector(model_file, pooling)
+    cnn, layerList = modelSelector(str(model_file).lower(), pooling)
     cnn.load_state_dict(torch.load(model_file))
     print("Successfully loaded " + str(model_file))
 
     # Maybe convert the model to cuda now, to avoid later issues
-    if use_gpu == '0':
+    if use_gpu > -1:
         cnn = cnn.cuda()
     cnn = cnn.features 
 
